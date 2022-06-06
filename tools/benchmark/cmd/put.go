@@ -16,10 +16,8 @@ package cmd
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -50,6 +48,7 @@ var (
 
 	keySpaceSize int
 	seqKeys      bool
+	keyStarts    int64
 
 	compactInterval   time.Duration
 	compactIndexDelta int64
@@ -69,6 +68,7 @@ func init() {
 	putCmd.Flags().DurationVar(&compactInterval, "compact-interval", 0, `Interval to compact database (do not duplicate this with etcd's 'auto-compaction-retention' flag) (e.g. --compact-interval=5m compacts every 5-minute)`)
 	putCmd.Flags().Int64Var(&compactIndexDelta, "compact-index-delta", 1000, "Delta between current revision and compact revision (e.g. current revision 10000, compact at 9000)")
 	putCmd.Flags().BoolVar(&checkHashkv, "check-hashkv", false, "'true' to check hashkv")
+	putCmd.Flags().Int64Var(&keyStarts, "key-starts", 0, "Put request's key starts from given numeric value for sequential-keys option")
 }
 
 func putFunc(cmd *cobra.Command, args []string) {
@@ -83,7 +83,8 @@ func putFunc(cmd *cobra.Command, args []string) {
 	}
 	limit := rate.NewLimiter(rate.Limit(putRate), 1)
 	clients := mustCreateClients(totalClients, totalConns)
-	k, v := make([]byte, keySize), string(mustRandBytes(valSize))
+	v := string(mustRandBytes(valSize))
+	k, v := "", string(mustRandBytes(valSize))
 
 	bar = pb.New(putTotal)
 	bar.Format("Bom !")
@@ -108,11 +109,12 @@ func putFunc(cmd *cobra.Command, args []string) {
 	go func() {
 		for i := 0; i < putTotal; i++ {
 			if seqKeys {
-				binary.PutVarint(k, int64(i%keySpaceSize))
+				k = fmt.Sprintf("%v", keyStarts)
+				keyStarts++
 			} else {
-				binary.PutVarint(k, int64(rand.Intn(keySpaceSize)))
+				k = fmt.Sprintf("%v", i)
 			}
-			requests <- v3.OpPut(string(k), v)
+			requests <- v3.OpPut(k, v)
 		}
 		close(requests)
 	}()
