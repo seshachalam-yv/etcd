@@ -26,6 +26,8 @@ import (
 	"go.etcd.io/etcd/pkg/v3/report"
 
 	"github.com/dustin/go-humanize"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/spf13/cobra"
 	"golang.org/x/time/rate"
 	"gopkg.in/cheggaaa/pb.v1"
@@ -47,28 +49,26 @@ var (
 	putRate  int
 
 	keySpaceSize int
-	seqKeys      bool
-	keyStarts    int64
 
 	compactInterval   time.Duration
 	compactIndexDelta int64
 
 	checkHashkv bool
+	repeat      int
 )
 
 func init() {
 	RootCmd.AddCommand(putCmd)
+	putCmd.Flags().IntVar(&repeat, "repeat", 10, "Repeat N times the same test")
 	putCmd.Flags().IntVar(&keySize, "key-size", 8, "Key size of put request")
 	putCmd.Flags().IntVar(&valSize, "val-size", 8, "Value size of put request")
 	putCmd.Flags().IntVar(&putRate, "rate", 0, "Maximum puts per second (0 is no limit)")
 
 	putCmd.Flags().IntVar(&putTotal, "total", 10000, "Total number of put requests")
 	putCmd.Flags().IntVar(&keySpaceSize, "key-space-size", 1, "Maximum possible keys")
-	putCmd.Flags().BoolVar(&seqKeys, "sequential-keys", false, "Use sequential keys")
 	putCmd.Flags().DurationVar(&compactInterval, "compact-interval", 0, `Interval to compact database (do not duplicate this with etcd's 'auto-compaction-retention' flag) (e.g. --compact-interval=5m compacts every 5-minute)`)
 	putCmd.Flags().Int64Var(&compactIndexDelta, "compact-index-delta", 1000, "Delta between current revision and compact revision (e.g. current revision 10000, compact at 9000)")
 	putCmd.Flags().BoolVar(&checkHashkv, "check-hashkv", false, "'true' to check hashkv")
-	putCmd.Flags().Int64Var(&keyStarts, "key-starts", 0, "Put request's key starts from given numeric value for sequential-keys option")
 }
 
 func putFunc(cmd *cobra.Command, args []string) {
@@ -89,7 +89,16 @@ func putFunc(cmd *cobra.Command, args []string) {
 	bar = pb.New(putTotal)
 	bar.Format("Bom !")
 	bar.Start()
+	if len(pushgateway) > 0 {
+		latencyMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "etcd_benchmark_op_duration_seconds",
+			Help: "The duration of the last DB backup in seconds.",
+		}, []string{"key", "method", "test_name"})
 
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(latencyMetric)
+		pusher = push.New(pushgateway, "etcd_benchmark").Gatherer(registry)
+	}
 	r := newReport()
 	for i := range clients {
 		wg.Add(1)
@@ -100,6 +109,10 @@ func putFunc(cmd *cobra.Command, args []string) {
 
 				st := time.Now()
 				_, err := c.Do(context.Background(), op)
+				fmt.Println(string(op.KeyBytes()), "put", testName, float64(time.Since(st).Milliseconds()))
+				if len(pushgateway) > 0 {
+					latencyMetric.WithLabelValues(string(op.KeyBytes()), "put", testName).Set(float64(time.Since(st).Milliseconds()))
+				}
 				r.Results() <- report.Result{Err: err, Start: st, End: time.Now()}
 				bar.Increment()
 			}
@@ -107,14 +120,16 @@ func putFunc(cmd *cobra.Command, args []string) {
 	}
 
 	go func() {
-		for i := 0; i < putTotal; i++ {
-			if seqKeys {
-				k = fmt.Sprintf("%v", keyStarts)
-				keyStarts++
-			} else {
-				k = fmt.Sprintf("%v", i)
+		for j := 0; j < repeat; j++ {
+			for i := 0; i < putTotal; i++ {
+				if seqKeys {
+					k = fmt.Sprintf("%v", keyStarts)
+					keyStarts++
+				} else {
+					k = fmt.Sprintf("%v", i)
+				}
+				requests <- v3.OpPut(k, v)
 			}
-			requests <- v3.OpPut(k, v)
 		}
 		close(requests)
 	}()
@@ -133,6 +148,11 @@ func putFunc(cmd *cobra.Command, args []string) {
 	close(r.Results())
 	bar.Finish()
 	fmt.Println(<-rc)
+	if len(pushgateway) > 0 {
+		if err := pusher.Add(); err != nil {
+			fmt.Println("Could not push to Pushgateway:", err)
+		}
+	}
 
 	if checkHashkv {
 		hashKV(cmd, clients)

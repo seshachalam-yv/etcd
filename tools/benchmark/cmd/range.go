@@ -24,6 +24,8 @@ import (
 	v3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/pkg/v3/report"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/spf13/cobra"
 	"golang.org/x/time/rate"
 	"gopkg.in/cheggaaa/pb.v1"
@@ -56,11 +58,11 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	k := args[0]
-	end := ""
-	if len(args) == 2 {
-		end = args[1]
-	}
+	// k := args[0]
+	// end := ""
+	// if len(args) == 2 {
+	// 	end = args[1]
+	// }
 
 	if rangeConsistency == "l" {
 		fmt.Println("bench with linearizable range")
@@ -82,7 +84,16 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 	bar = pb.New(rangeTotal)
 	bar.Format("Bom !")
 	bar.Start()
+	if len(pushgateway) > 0 {
+		latencyMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "etcd_benchmark_op_duration_seconds",
+			Help: "The duration of the last DB backup in seconds.",
+		}, []string{"key", "method", "test_name", "consistency"})
 
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(latencyMetric)
+		pusher = push.New(pushgateway, "etcd_benchmark").Gatherer(registry)
+	}
 	r := newReport()
 	for i := range clients {
 		wg.Add(1)
@@ -90,9 +101,11 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 			defer wg.Done()
 			for op := range requests {
 				limit.Wait(context.Background())
-
 				st := time.Now()
 				_, err := c.Do(context.Background(), op)
+				if len(pushgateway) > 0 {
+					latencyMetric.WithLabelValues(string(op.KeyBytes()), "range", testName, rangeConsistency).Set(float64(time.Since(st).Milliseconds()))
+				}
 				r.Results() <- report.Result{Err: err, Start: st, End: time.Now()}
 				bar.Increment()
 			}
@@ -101,11 +114,11 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 
 	go func() {
 		for i := 0; i < rangeTotal; i++ {
-			opts := []v3.OpOption{v3.WithRange(end)}
+			opts := []v3.OpOption{v3.WithRange(fmt.Sprintf("%d", keyStarts+1))}
 			if rangeConsistency == "s" {
 				opts = append(opts, v3.WithSerializable())
 			}
-			op := v3.OpGet(k, opts...)
+			op := v3.OpGet(fmt.Sprintf("%d", keyStarts), opts...)
 			requests <- op
 		}
 		close(requests)
@@ -115,5 +128,10 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 	wg.Wait()
 	close(r.Results())
 	bar.Finish()
+	if len(pushgateway) > 0 {
+		if err := pusher.Add(); err != nil {
+			fmt.Println("Could not push to Pushgateway:", err)
+		}
+	}
 	fmt.Printf("%s", <-rc)
 }

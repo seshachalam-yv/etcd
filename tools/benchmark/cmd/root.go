@@ -20,6 +20,8 @@ import (
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/spf13/cobra"
 	"gopkg.in/cheggaaa/pb.v1"
 )
@@ -55,6 +57,14 @@ var (
 
 	targetLeader     bool
 	autoSyncInterval time.Duration
+
+	pushgateway   string
+	latencyMetric *prometheus.GaugeVec
+	pusher        *push.Pusher
+
+	seqKeys   bool
+	keyStarts int64
+	testName  string
 )
 
 func init() {
@@ -73,4 +83,10 @@ func init() {
 
 	RootCmd.PersistentFlags().BoolVar(&targetLeader, "target-leader", false, "connect only to the leader node")
 	RootCmd.PersistentFlags().DurationVar(&autoSyncInterval, "auto-sync-interval", time.Duration(0), "AutoSyncInterval is the interval to update endpoints with its latest members")
+	RootCmd.PersistentFlags().StringVar(&pushgateway, "pushgateway", "", "Prometheus pushgateway endpoint ['http://localhost:9091'] to push prometheus metrics if endpoint is provided")
+
+	putCmd.Flags().BoolVar(&seqKeys, "sequential-keys", false, "Use sequential keys")
+	putCmd.Flags().Int64Var(&keyStarts, "key-starts", 0, "Put request's key starts from given numeric value for sequential-keys option")
+	RootCmd.PersistentFlags().StringVar(&testName, "test-name", "", "name of the benchmark test (default '')")
+
 }
