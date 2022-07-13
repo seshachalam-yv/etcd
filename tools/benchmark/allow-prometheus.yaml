@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  annotations:
+    gardener.cloud/description: |
+      Allows Prometheus pushgateway to talk with etcd-client pod.
+  name: allow-prometheus-pushgateway
+  namespace: shoot--ash-garden--mz-apple
+
+spec:
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: network-exporter
+      podSelector:
+        matchLabels:
+          app: pushgateway
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: network-exporter
+      podSelector:
+        matchLabels:
+          app: pushgateway
+
+  podSelector:
+    matchLabels:
+      "instance": "etcd-client"
+  policyTypes:
+  - Egress
+  - Ingress
