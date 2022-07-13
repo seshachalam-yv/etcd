@@ -41,6 +41,9 @@ var (
 	rangeRate        int
 	rangeTotal       int
 	rangeConsistency string
+
+	rangeSeqKeys   bool
+	rangeKeyStarts int64
 )
 
 func init() {
@@ -48,6 +51,8 @@ func init() {
 	rangeCmd.Flags().IntVar(&rangeRate, "rate", 0, "Maximum range requests per second (0 is no limit)")
 	rangeCmd.Flags().IntVar(&rangeTotal, "total", 10000, "Total number of range requests")
 	rangeCmd.Flags().StringVar(&rangeConsistency, "consistency", "l", "Linearizable(l) or Serializable(s)")
+	rangeCmd.Flags().BoolVar(&rangeSeqKeys, "sequential-keys", false, "Use sequential keys")
+	rangeCmd.Flags().Int64Var(&rangeKeyStarts, "key-starts", 0, "This option is used to look for specific keys (numeric value) like 0, 1, 2... until total range requests if sequential-keys option is [true]")
 }
 
 func rangeFunc(cmd *cobra.Command, args []string) {
@@ -101,6 +106,10 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 
 	go func() {
 		for i := 0; i < rangeTotal; i++ {
+			if rangeSeqKeys {
+				k = fmt.Sprintf("%d", rangeKeyStarts)
+				rangeKeyStarts++
+			}
 			opts := []v3.OpOption{v3.WithRange(end)}
 			if rangeConsistency == "s" {
 				opts = append(opts, v3.WithSerializable())
