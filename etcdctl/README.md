@@ -1129,6 +1129,23 @@ DOWNGRADE CANCEL cancels the ongoing downgrade action to cluster.
 ./etcdctl downgrade cancel
 Downgrade cancel success, cluster version 3.5
 ```
+### DIAGNOSIS <subcommand>
+
+`diagnosis` collects a set of troubleshooting details from every endpoint and
+optionally analyses an etcd data directory when `--offline` is specified.
+The command runs several plugins including membership checks, endpoint status,
+serializable and linearizable reads and a small metrics snapshot.
+
+#### Example
+
+```bash
+# online analysis
+./etcdctl diagnosis --endpoints=http://127.0.0.1:2379
+
+# offline analysis
+./etcdctl diagnosis --offline --data-dir /var/lib/etcd
+```
+
 
 ## Concurrency commands
 

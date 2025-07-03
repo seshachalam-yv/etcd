@@ -88,7 +88,7 @@ verify: verify-gofmt verify-bom verify-lint verify-dep verify-shellcheck verify-
 	verify-govet-shadow verify-markdown-marker verify-go-versions
 
 .PHONY: fix
-fix: fix-bom fix-lint fix-yamllint sync-toolchain-directive
+	fix: fix-bom fix-lint fix-yamllint sync-toolchain-directive
 	./scripts/fix.sh
 
 .PHONY: verify-gofmt
@@ -100,7 +100,7 @@ verify-bom:
 	PASSES="bom" ./scripts/test.sh
 
 .PHONY: fix-bom
-fix-bom:
+	fix-bom:
 	./scripts/updatebom.sh
 
 .PHONY: verify-dep
@@ -112,7 +112,7 @@ verify-lint: install-golangci-lint
 	PASSES="lint" ./scripts/test.sh
 
 .PHONY: fix-lint
-fix-lint:
+	fix-lint:
 	PASSES="lint_fix" ./scripts/test.sh
 
 .PHONY: verify-shellcheck
@@ -172,7 +172,7 @@ verify-markdown-marker:
 YAMLFMT_VERSION = $(shell cd tools/mod && go list -m -f '{{.Version}}' github.com/google/yamlfmt)
 
 .PHONY: fix-yamllint
-fix-yamllint:
+	fix-yamllint:
 ifeq (, $(shell which yamlfmt))
 	$(shell go install github.com/google/yamlfmt/cmd/yamlfmt@$(YAMLFMT_VERSION))
 endif
@@ -190,9 +190,10 @@ endif
 GOLANGCI_LINT_VERSION = $(shell cd tools/mod && go list -m -f {{.Version}} github.com/golangci/golangci-lint)
 .PHONY: install-golangci-lint
 install-golangci-lint:
-ifeq (, $(shell which golangci-lint))
-	$(shell curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin $(GOLANGCI_LINT_VERSION))
-endif
+	@installed_version=$$(golangci-lint --version 2>/dev/null | awk '{print $$4}' || echo); \
+	if [ "$$installed_version" != "$(GOLANGCI_LINT_VERSION)" ]; then \
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
+	fi
 
 .PHONY: install-lazyfs
 install-lazyfs: bin/lazyfs
