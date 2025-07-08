@@ -1,15 +1,12 @@
 package engine
 
 import (
-	"encoding/json"
-	"log"
-	"os"
+       "encoding/json"
+       "fmt"
+       "log"
+       "os"
 
-	"go.etcd.io/etcd/etcdctl/v3/diagnosis/engine/intf"
-)
-
-const (
-	reportFileName = "etcd_diagnosis_report.json"
+       "go.etcd.io/etcd/etcdctl/v3/diagnosis/engine/intf"
 )
 
 type report struct {
@@ -17,7 +14,10 @@ type report struct {
 	Results []any `json:"results,omitempty"`
 }
 
-func Diagnose(input any, plugins []intf.Plugin) {
+// Diagnose runs all provided plugins and outputs a report. If outputFile is an
+// empty string, the report is written to stdout, otherwise it's written to the
+// specified file.
+func Diagnose(input any, plugins []intf.Plugin, outputFile string) {
 	rp := report{
 		Input: input,
 	}
@@ -36,12 +36,17 @@ func Diagnose(input any, plugins []intf.Plugin) {
 		log.Println(string(b))
 	}
 
-	b, err := json.MarshalIndent(rp, "", "\t")
-	if err != nil {
-		log.Fatalf("Failed to marshal the report: %v", err)
-	}
+       b, err := json.MarshalIndent(rp, "", "\t")
+       if err != nil {
+               log.Fatalf("Failed to marshal the report: %v", err)
+       }
 
-	if err := os.WriteFile(reportFileName, b, 0644); err != nil {
-		log.Fatalf("Failed to write the report to file: %v", err)
-	}
+       if outputFile == "" {
+               fmt.Fprintln(os.Stdout, string(b))
+               return
+       }
+
+       if err := os.WriteFile(outputFile, b, 0644); err != nil {
+               log.Fatalf("Failed to write the report to file: %v", err)
+       }
 }

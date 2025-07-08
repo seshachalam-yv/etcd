@@ -30,12 +30,11 @@ type GlobalConfig struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 
-	DbQuotaBytes int `json:"db-quota-bytes,omitempty"`
+       DbQuotaBytes int `json:"db-quota-bytes,omitempty"`
 
-	PrintVersion bool `json:"print-version,omitempty"`
-
-	Offline bool   `json:"offline,omitempty"`
-	DataDir string `json:"data-dir,omitempty"`
+       // OutputFile is the path of the file to write the diagnosis report to.
+       // If empty, the report is printed to stdout.
+       OutputFile string `json:"output-file,omitempty"`
 }
 
 func clientConfigWithoutEndpoints(gcfg GlobalConfig) *clientv3.ConfigSpec {

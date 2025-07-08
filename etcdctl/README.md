@@ -1131,9 +1131,8 @@ Downgrade cancel success, cluster version 3.5
 ```
 ### DIAGNOSIS <subcommand>
 
-`diagnosis` collects a set of troubleshooting details from every endpoint and
-optionally analyses an etcd data directory when `--offline` is specified.
-The command runs several plugins including membership checks, endpoint status,
+`diagnosis` collects a set of troubleshooting details from every endpoint. The
+command runs several plugins including membership checks, endpoint status,
 serializable and linearizable reads and a small metrics snapshot.
 
 #### Example
@@ -1142,8 +1141,9 @@ serializable and linearizable reads and a small metrics snapshot.
 # online analysis
 ./etcdctl diagnosis --endpoints=http://127.0.0.1:2379
 
-# offline analysis
-./etcdctl diagnosis --offline --data-dir /var/lib/etcd
+# write report to a file
+./etcdctl diagnosis --endpoints=http://127.0.0.1:2379 -o report.json
+
 ```
 
 
@@ -1158,12 +1158,9 @@ The `diagnosis` command is a powerful tool for troubleshooting etcd clusters. It
   * **Serializable and linearizable reads**: Performs read operations to validate data consistency.
   * **Metrics snapshot**: Collects a small snapshot of key metrics.
 
-For offline analysis, the `--offline` flag can be used to analyze an etcd data directory. This is useful for troubleshooting a non-operational cluster.
-
 #### **FLAGS**
 
-  * `--offline`: Enables offline analysis of an etcd data directory.
-  * `--data-dir`: The path to the etcd data directory for offline analysis.
+  * `--output` (`-o`): Write the diagnosis report to the specified file. If omitted, the report is printed to stdout.
 
 #### **EXAMPLES**
 
@@ -1581,32 +1578,6 @@ etcdctl diagnosis --endpoints=https://10.0.1.10:2379,https://10.0.1.11:2379,http
 
 <br/>
 
-##### **Offline Analysis**
-
-For offline analysis, you can specify the data directory using the `--data-dir` flag. This is useful for troubleshooting a cluster that is not currently running.
-
-```bash
-etcdctl diagnosis --offline --data-dir ~/tmp/etcd/data/
-```
-
-The output will provide a summary of key statistics from the offline data.
-
-```
-2025/05/23 16:58:37 etcd diagnosis performs offline analysis...
-All key stats:
-/registry/leases/kube-system/kube-controller-manager: 171
-/registry/leases/kube-system/kube-scheduler: 171
-/registry/masterleases/30.1.0.2: 36
-/registry/leases/kube-node-lease/a341653e-a558-4e2d-ac86-cd7d828341bc: 35
-/registry/leases/kube-node-lease/37ff8ff5-a3ab-454d-a1e7-a30ce20536f5: 35
-/registry/leases/kube-node-lease/535d6dce-f28e-4b53-aff5-5eec8fde2786: 34
-/registry/minions/a341653e-a558-4e2d-ac86-cd7d828341bc: 2
-/registry/minions/37ff8ff5-a3ab-454d-a1e7-a30ce20536f5: 2
-compact_rev_key: 2
-/registry/minions/535d6dce-f28e-4b53-aff5-5eec8fde2786: 2
-/registry/clusterrolebindings/metrics-server:system:auth-delegator: 1
-/registry/pods/vmware-system-csi/vsphere-csi-node-jjrtp: 1
-```
 
 ## Concurrency commands
 
